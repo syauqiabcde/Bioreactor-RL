@@ -7,6 +7,7 @@ import os
 from environment import Bioreactor
 import tensorflow as tf
 import torch
+from pathlib import Path
 
 def reward_viz(rewards, nb_episode, rolling_window = 10, confidence = 0.95, title=''):
     fig = plt.figure(dpi=400)
@@ -67,7 +68,7 @@ class ControlAgent:
         def custom_activation(x):
             return tf.clip_by_value(x, -1.0, 1.0)
     
-        base_dir = r'D:\Ahmad Syauqis Document\Paper - RL for microalgae\UI\models'
+        base_dir = Path(__file__).resolve().parents[1] / "models"
 
         agent_filenames = {
             key: os.path.join(base_dir, f"{key}.h5")
