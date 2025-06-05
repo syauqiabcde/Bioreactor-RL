@@ -7,32 +7,21 @@ from noise import GaussianWhiteNoiseProcess
 from utils import reward_viz, avg_state_viz, result_to_xlsx
 from tensorflow import keras
 from keras.layers import Dense, Input, Concatenate, BatchNormalization, Activation
-from tensorflow.keras.utils import get_custom_objects
 from keras.models import Model
 import time
 import os
 import math
 from datetime import datetime
 
-def custom_activation(x):
-    return tf.clip_by_value(x, -1.0, 1.0)
-
-get_custom_objects().update({'custom_activation': Activation(custom_activation)})
-
 def ActorNetwork(n_actions, n_states, activation='tanh', units = [32]):   
-    
-    if activation == 'tanh':
-        act = 'tanh'
-    elif activation == 'custom':
-        act = custom_activation
 
     i = Input(shape=(n_states,))
     x = i
 
     for j in range(len(units)):
-        x = Dense(units=units[j],activation=act)(i) 
+        x = Dense(units=units[j],activation='tanh')(i) 
 
-    x = Dense(units=n_actions,activation=act)(x)
+    x = Dense(units=n_actions,activation='tanh')(x)
     
     model = Model(i,x)
     return model
@@ -73,7 +62,7 @@ if __name__ == '__main__':
 
     num_states = [1,    # light agent (I sunlight)
                1,       # CO2 agent (CO2 concentration)
-               1,       # pH agent (CO2 ratio and pH)
+               1,       # pH agent (pH)
                2,       # Substrate agent (x and S)
                2]       # Temperature agent (T and T env)
 
