@@ -52,14 +52,6 @@ ax.text(0.0, 120, f'Accuracy: {(1-mean_absolute_percentage_error(x_data, x_model
 ax.text(-0.12, 1.05, 'a', transform=ax.transAxes,
             fontsize=14, fontweight='bold', va='top', ha='left')
 
-svg_path = r'D:\Ahmad Syauqis Document\Paper - RL for microalgae\Paper work\Initial\Figure\SVG'
-png_path = r'D:\Ahmad Syauqis Document\Paper - RL for microalgae\Paper work\Initial\Figure\PNG'
-
-png_file = os.path.join(png_path, f"growth_validation.png")
-svg_file = os.path.join(svg_path, f"growth_validation.svg")
-    
-fig.savefig(png_file, dpi=600, bbox_inches='tight')
-fig.savefig(svg_file, bbox_inches='tight')
 #%% Photosynthesis model
 
 df = pd.read_csv('photosynthesis validation.csv')
@@ -152,9 +144,3 @@ ax.text(-0.12, 1.08, 'b', transform=ax.transAxes,
             fontsize=14, fontweight='bold', va='top', ha='left')
 ax.spines['top'].set_visible(False)
 ax.spines['right'].set_visible(False)
-
-png_file = os.path.join(png_path, f"photosynthesis_validation.png")
-svg_file = os.path.join(svg_path, f"photosynthesis_validation.svg")
-    
-fig.savefig(png_file, dpi=600, bbox_inches='tight')
-fig.savefig(svg_file, bbox_inches='tight')
