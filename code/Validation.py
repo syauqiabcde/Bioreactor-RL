@@ -51,6 +51,8 @@ ax.spines['right'].set_visible(False)
 ax.text(0.0, 120, f'Accuracy: {(1-mean_absolute_percentage_error(x_data, x_model))*100:.1f}%')
 ax.text(-0.12, 1.05, 'a', transform=ax.transAxes,
             fontsize=14, fontweight='bold', va='top', ha='left')
+ax.set_xticks(np.arange(0,22,2))
+ax.set_xticklabels(np.arange(0,22,2))
 
 #%% Photosynthesis model
 
