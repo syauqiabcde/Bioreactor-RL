@@ -6,6 +6,7 @@ from model_bioreactor import growth_model, bioreactor
 import matplotlib.pyplot as plt
 from sklearn.metrics import mean_absolute_percentage_error, r2_score
 import os
+import seaborn as sns
 
 df = pd.read_csv('Validation dataset.csv')
 df = df.interpolate()
@@ -62,6 +63,7 @@ fig.savefig(svg_file, bbox_inches='tight')
 #%% Photosynthesis model
 
 df = pd.read_csv('photosynthesis validation.csv')
+df['O2 data'] = df['O2 production (micro mol/mg chl/h)'] * 0.004 / 1e3 * 32 * 24 # from micro mol/mg chl/h to g O2/g biomass/day
 x = 1 # g/m3
 
 # Below is not important parameter for this particular use i.e. photosynthesis validation 
@@ -85,17 +87,18 @@ Fs = 0
 
 visible_wavelength_fration = 0.42 # https://en.wikipedia.org/wiki/Sunlight
 Fair = 200/1000/60
-FCO2 = 0.01*Fair
+
 CO2 = 330 / 1e6 * 44 * 1000 # g/m3
 
 O2_model = []
-O2_datas = []
+
 for i in range(df.shape[0]):
     I_sunlight = df['Irradiance(W/m2)'][i] / visible_wavelength_fration
     T = df['Temperature'][i]
     pH = df['pH'][i] 
-    O2_data = df['O2 production (micro mol/mg chl/h)'][i] * 0.004 / 1e3 * 32 * 24 # from micro mol/mg chl/h to g O2/g biomass/day
     
+    FCO2 = df['CO2 ratio'][i]*Fair
+
     model =  bioreactor(x, 
                 S,  
                 I_sunlight,
@@ -121,13 +124,37 @@ for i in range(df.shape[0]):
     
     rO2 = model.rO2p() / model.x_mass
     O2_model.append(rO2)
-    O2_datas.append(O2_data)
 
-accuracy = (1-mean_absolute_percentage_error(O2_datas, O2_model))
-p = min(min(O2_datas), min(O2_model))
-q = max(max(O2_datas), max(O2_model))
+refs = df['Ref'].unique()
+colors = sns.color_palette("tab10", n_colors=len(refs)+1)
+markers = ['o', 'x', '+']
+
+df['O2 model'] = O2_model
+accuracy = (1-mean_absolute_percentage_error(df['O2 data'], df['O2 model']))
+p = min(min(df['O2 data']), min(df['O2 model']))
+q = max(max(df['O2 data']), max(df['O2 model']))
 
 fig, ax = plt.subplots(figsize=(6, 4), dpi=600)
-ax.plot([p,q], [p,q])
-ax.scatter(O2_datas, O2_model)
-ax.text(0, 2, f'Accuracy: {accuracy*100:.1f}%')
+ax.plot([p,q], [p,q], linewidth=3, color=colors[0])
+
+for i, ref in enumerate(refs):
+    ax.scatter(df[df['Ref'] == ref]['O2 data'], df[df['Ref'] == ref]['O2 model'],
+               label=ref, 
+               color=colors[i+1], 
+               alpha=0.8,
+               marker=markers[i])
+
+ax.text(p*1.2, q*0.6, f'Accuracy: {accuracy*100:.1f}%')
+ax.set_ylabel(r'Predicted O$_2$ production (g$_{\mathrm{O_2}}$ g$_\mathrm{biomass}^{-1}$ day$^{-1}$)')
+ax.set_xlabel(r'Actual O$_2$ production (g$_{\mathrm{O_2}}$ g$_\mathrm{biomass}^{-1}$ day$^{-1}$)')
+ax.legend(frameon=False)
+ax.text(-0.12, 1.08, 'b', transform=ax.transAxes,
+            fontsize=14, fontweight='bold', va='top', ha='left')
+ax.spines['top'].set_visible(False)
+ax.spines['right'].set_visible(False)
+
+png_file = os.path.join(png_path, f"photosynthesis_validation.png")
+svg_file = os.path.join(svg_path, f"photosynthesis_validation.svg")
+    
+fig.savefig(png_file, dpi=600, bbox_inches='tight')
+fig.savefig(svg_file, bbox_inches='tight')
