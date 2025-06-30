@@ -14,8 +14,8 @@ class Bioreactor(Env):
             "CO2_ratio": (0, 0.1),
             "Facid": (0, 1e-7),         # in m3/s
             "Fbase": (0, 1e-7),         # in m3/s
-            "Fs": (0, 2e-5),            # in kg/s
-            "Q_heat": (-2, 2)           # in kW
+            "Fs": (0, 1e-4),            # in kg/s
+            "Q_heat": (-4, 4)           # in kW
         }
 
         action_low = np.array([low for low, _ in self.action_ranges.values()], dtype=np.float32)
@@ -24,9 +24,8 @@ class Bioreactor(Env):
 
         # Define observation space ranges (In range(min,max) not optimum condition)
         self.observation_ranges = {
-            "I_sunlight": (0.0, 2000.0),   # in W/m2
+            "I_sunlight": (0.0, 800.0),   # in W/m2
             "CO2": (0.0, 50.0),  # in g/m3
-            # "CO2_ratio": (self.action_ranges['CO2_ratio'][0], self.action_ranges['CO2_ratio'][1]),
             "pH": (8.0, 10.5),
             "x": (1.0, 100.0),  # in g/m3
             "S": (10.0, 50.0),  # in g/m3            
@@ -85,7 +84,7 @@ class Bioreactor(Env):
         self.CO2_ratio = 0
 
         self.current_step = 0
-        self.max_steps = 24 * 30 # 30 day step
+        self.max_steps = 24 * 15 # 15 day step
         self.episode_reward = np.zeros(5)
         self.rewards = []
         self.result = []
@@ -100,14 +99,6 @@ class Bioreactor(Env):
     def _tanh(self, value):
         return (np.exp(value) - np.exp(-value))/(np.exp(value) + np.exp(-value))
     
-    def _scale_obs(self):       # scale obs to 0 - 1
-        for i, (key, value) in enumerate (self.observation_ranges.items()):
-            self.obs[i] = (self.obs[i] - value[0]) / (value[1] - value[0])
-    
-    def _inverse_scale_obs(self):    # scale back obs from scaled to original value
-        for i, (key, value) in enumerate (self.observation_ranges.items()):
-            self.obs[i] = value[0] + self.obs[i] * (value[1] - value[0])
-
     def _get_result(self):
         result = [getattr(self, key) for key in self.result_sequence]
         self.result.append(result)
@@ -120,7 +111,6 @@ class Bioreactor(Env):
         
         reward_light = (self.miu_light  - light_elc * 0.5) * 10
         reward_CO2 = self.miu_CO2 * 10 
-        # reward_pH = (np.abs(self.pH - self.pH_opt)*-1) + 14
         reward_pH = self.miu_pH * 10
         reward_substrate = self.miu_S * 10
         reward_T = self.miu_T * 10
@@ -129,8 +119,7 @@ class Bioreactor(Env):
     
     def step(self, action):
         self.current_step += 1
-        # self._inverse_scale_obs()
-
+        
         action = np.array([
             self._scale_action(action[i], low, high)
             for i, (low, high) in enumerate(self.action_ranges.values())
@@ -163,7 +152,6 @@ class Bioreactor(Env):
 
         self._initialize_env()
         self._get_obs()
-        # self._scale_obs()
         return self.obs.copy(), reward, done, {}
 
     def reset(self):
@@ -180,14 +168,13 @@ class Bioreactor(Env):
         self._initialize_env()
 
         self._get_obs()
-        # self._scale_obs()
         return self.obs.copy() 
 
     def render(self):
         pass
 
     def _initialize_env(self):
-        self.I_sunlight = np.random.uniform(0, 2000.0)
+        self.I_sunlight = np.random.uniform(0, 800.0)
         self.I_sunlight = np.random.choice((0.0, self.I_sunlight), p=[0.3, 0.7])
         self.T_env = np.random.uniform(self.observation_ranges['T_env'][0], self.observation_ranges['T_env'][1])        
         self.RH = np.random.uniform(0, 1)
