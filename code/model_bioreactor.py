@@ -14,7 +14,7 @@ class growth_model:
         self.DO = DO
         self.substrate = substrate
         self.carbon = carbon
-
+        
         self.KIi = 13.9136
         self.KC = 0.0396
         self.Kc = 7920
@@ -28,7 +28,6 @@ class growth_model:
         self.pH_max = 10.5
         self.miu_max = 3.24
         self.x_star = 8000
-
 
     def growth_carbon(self):
         fC = self.carbon/(self.carbon+ self.KC + self.carbon**2/self.Kc)
@@ -73,7 +72,7 @@ class growth_model:
         fS = self.growth_substrate()
         finh = self.inhibitory()
 
-        miu = self.miu_max * fC * fI * fT * fO2 * fpH * fS * finh
+        miu = self.miu_max * max(min(fC, 1.0), 0.0) * max(min(fI, 1.0), 0.0) * max(min(fT, 1.0), 0.0) * max(min(fO2, 1.0), 0.0) * max(min(fpH, 1.0), 0.0) * max(min(fS, 1.0),0.0) * max(min(finh,1.0), 0.0)
         return [miu, fI, fC, fpH, fS, fT]
     
 class bioreactor():
@@ -108,7 +107,7 @@ class bioreactor():
         self.g = constants.g        # gravity acceleration
         self.R = constants.physical_constants['molar gas constant'][0] #Ideal Gas Constant
         self.db = 0.001             # Bubble diameter in m
-        self.PE = 0.03              # photosynthesis efficiency
+        self.PE = 0.08              # photosynthesis efficiency
         self.absorp = 0.03          # Absorptivity of bioreactor material i.e. glass
         self.glass_k = 0.85         # thermal conductivity of bioreactor material in W/m.K
         self.thick = 3e-3           # bioreactor thickness in m
@@ -142,7 +141,7 @@ class bioreactor():
         self.I_sun = I_sunlight     # Sunlight Irradiance (W/m2)
         self.I_red = I_red_light      # Irradiance of red lamp (W/m2)   
         self.I_blue = I_blue_light    # irradicnce of blue lamp (W/m2)
-        self.I0 = self.I_sun + self.I_red + self.I_blue  # total irradiance hitting surface of biorea ctor
+        self.I0 = self.I_sun + self.I_red + self.I_blue  # total irradiance hitting surface of bioreactor
         self.Iz = 0                 # Initializing the light intensity hitting the biomass
         self.T = T                  # Temperature of the cell culture (deg C)
         self.CO2 = CO2              # Dissolved CO2 concentration (g/m3)
@@ -173,7 +172,7 @@ class bioreactor():
         # Temporal increment
         self.dt_s = 60 * 60                                          # temporal increment in s
         self.dt = self.dt_s / (24 * 60 * 60)                         # temporal increment in day
-        self.dt_h = self.dt_s / (60 * 60)
+        self.dt_h = self.dt_s / (60 * 60)                            # temporal increment in hour
 
     def total_flow(self):
         return max(self.Fair_in + self.FCO2_in, 1e-10)
@@ -268,7 +267,10 @@ class bioreactor():
         U = 1/(R_cond + R_conv_int + R_conv_out)                                # deg C/w
 
         delta_T = self.T_env - self.T
-        delta_T_liq = max(10, self.T_env) - self.T
+        delta_T_liq = max(10, self.T_env) - self.T            
+        # since in some condition the environmental temperature lower than liquid's (water) freezing point, 
+        # then it is unreasonable to use delta_T for liquid such as H2O, acid, and base
+        # thus minimum liquid temperature of 10 C is assumed
 
         Q_air = self.Fair_in * self.density('Air') * self.heat_capacity('Air') * (delta_T)          # in W
         Q_CO2 = self.FCO2_in * self.density('CO2') * self.heat_capacity('CO2') * (delta_T)       # in W
@@ -342,7 +344,7 @@ class bioreactor():
     def NCO2(self):
         H = self.Henry('CO2')                       # in mol/(L.atm)
         Ftotal = self.total_flow()
-        P_CO2 = (self.FCO2_in + 400/1e6*self.Fair_in) / (Ftotal)   # in atm,  400/1e6 is the concentration of CO2 in air (400 ppm)
+        P_CO2 = (self.FCO2_in + 430/1e6*self.Fair_in) / (Ftotal)   # in atm,  430/1e6 is the concentration of CO2 in air (430 ppm)
         C_star = H * P_CO2 * 1000 * self.M_CO2      # in g/m3
         D = self.Diffusivity('CO2')
 
@@ -369,7 +371,7 @@ class bioreactor():
         CO2_function = self.CO2/(self.CO2+KCO2*(1+self.O2/KPR))
         temperature_function = ((self.T - self.TU) * (self.T - self.TL)**2) / ((self.Topt - self.TL) * (a - b))
         pH_function = ((self.pH - self.pH_max) * (self.pH - self.pH_min)**2) / ((pH_opt - self.pH_min) * (c - d))
-        rO2p = miuO2 * self.x_mass * light_function * CO2_function * max(temperature_function,0) * max(pH_function,0) 
+        rO2p = miuO2 * self.x_mass * max(light_function, 0) * max(CO2_function, 0) * max(temperature_function,0) * max(pH_function,0) 
         return rO2p                         # in gO2/day
 
     def rCO2(self):
@@ -407,24 +409,6 @@ class bioreactor():
         NH2O = k*(C_star - C) * self.A  * self.M_H2O /1000          # in kg/s
         return NH2O                                                 # in kg/s
     
-    def check_nan_attributes(self):
-        nan_attributes = {}
-        for attr, value in vars(self).items():
-            if isinstance(value, float) and math.isnan(value):
-                nan_attributes[attr] = value
-            elif isinstance(value, np.ndarray) and np.isnan(value).any():
-                nan_attributes[attr] = value
-        return nan_attributes
-    
-    def check_nans(self, loc):
-        nan_attrs = self.check_nan_attributes()
-        if nan_attrs:
-            print(f"Found NaNs located in {loc}")
-            for k, v in nan_attrs.items():
-                print(f"  {k}: {v}")
-
-            raise Exception(f"NaN occured in {loc}")    
-
     def solve(self):
         self.update_inventory()
         self.V_act = max(self.V_act, 1e-5)
@@ -432,13 +416,10 @@ class bioreactor():
         self.S = self.S_mass / self.V_act
         self.O2 = self.O2_mass / self.V_act
         self.CO2 = self.CO2_mass / self.V_act
-        self.S = self.S_mass / self.V_act
-
+        
         self.lambert_beer()                                         # updating the light intensity hitting the biomass
         self.energy_balance()                                       # updating the temperature
         self.pH_balance()                                           # updating the pH
-
-        self.check_nans(loc= 'after pH balance')
         
         self.O2_mass += (self.NO2() * 1000 * self.dt_s)             # updating the dissolved O2 mass after the flow air in
         self.CO2_mass += (self.NCO2() * 1000 * self.dt_s)           # updating the dissolved CO2 mass after the flow CO2 in    
@@ -455,17 +436,12 @@ class bioreactor():
                           carbon = self.CO2)
         miu = growth.solve()
 
-        self.check_nans(loc= 'after miu')
+        self.S -= (1/self.Yxs*self.x*miu[0])
+        self.S = max(0, self.S)
 
         self.x += (self.x*miu[0]) * self.dt
         self.x_mass = self.x * self.V_act
-        S_need = (self.m*self.x) * self.dt_h + (self.Yxs*self.x) * self.dt      # Requirement of substrate to sustain microalgae life
-        if self.S < S_need:                                                     # if substrate available less than required than algae will decay
-            self.x = self.x * self.S/S_need                                     # the decay proportional to the ratio of available and required substrate
-            self.S = 0
-        else:
-            self.S -= S_need
-
+        
         self.V_act += (-self.rH2O()/1000 * self.dt)/self.density('H2O')
         self.level = min(max(self.V_act / self.V, 0), 1)
         self.V_act = max(self.level * self.V, 1e-5)
@@ -473,8 +449,6 @@ class bioreactor():
         self.O2 += (self.rO2()) * self.dt
         self.CO2_mass += (- self.rCO2()/1000) * self.dt
         self.CO2 = self.CO2_mass / self.V_act
-        
-        self.check_nans(loc= 'end')
 
         return [max(self.x,0), 
                 max(self.S,0), 
@@ -483,4 +457,5 @@ class bioreactor():
                 max(self.CO2,0), 
                 max(self.O2,0), 
                 self.pH,
-                miu]
+                miu,
+                (self.rCO2()/1000)]
