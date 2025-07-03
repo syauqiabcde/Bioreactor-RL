@@ -79,36 +79,12 @@ class ControlAgent:
         self.num_states = [1,    # light agent (I sunlight)
                         1,       # CO2 agent (CO2 concentration)
                         1,       # pH agent (pH)
-                        2,       # Substrate agent (x and S)
+                        2,       # Nutrient agent (x and S)
                         2]       # Temperature agent (T and T env)
         
         self.env = Bioreactor()
         action_ranges = self.env.action_ranges 
         self.action_ranges_list = [(min, max) for (min, max) in action_ranges.values()]
-        
-        ###########################################
-        #        Loading agents for HMARL         #
-        ###########################################
-
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-        actor_names = ['Light', 'CO₂', 'pH', 'Substrate', 'Temperature']
-        self.agent_hmarl = {}
-        self.num_states_hmarl = [1, 1, 2, 2, 2] # from training HMARL
-
-        for name in actor_names:
-            path = os.path.join(base_dir, f'actor_{name}.h5')
-            model = torch.load(path, map_location=self.device)
-            model.eval()
-            self.agent_hmarl[name] = model
-
-        mgr_path = os.path.join(base_dir, 'manager.h5')
-        self.manager_hmarl = torch.load(mgr_path, map_location=self.device)
-        self.manager_hmarl.eval()
-
-        self.env_hmarl = Bioreactor()
-        action_ranges_hmarl = self.env_hmarl.action_ranges
-        self.action_ranges_list_hmarl = [ (min, max) for (min, max) in action_ranges_hmarl.values() ]
 
         ###########################################
         # General config for conventional control #
@@ -193,40 +169,6 @@ class ControlAgent:
                 idx_action += action.shape[1]
                 idx_state = idx_end
             return actions
-        
-        elif mode == 'HMARL':
-            gs = torch.from_numpy(obs.astype(np.float32))\
-                      .unsqueeze(0)\
-                      .to(self.device)
-
-            with torch.no_grad():
-
-                raw_scores = self.manager_hmarl(gs)      # tensor shape [1,5]
-            w = torch.softmax(raw_scores, dim=-1)        # [1,5]
-            w = w.cpu().numpy().flatten()                # array length 5
-
-            idx_s = idx_a = 0
-            
-            for i, actor in enumerate(self.agent_hmarl.values()):
-                n_s = self.num_states_hmarl[i]
-                lo = torch.from_numpy(
-                         obs[idx_s:idx_s + n_s].astype(np.float32)
-                     ).unsqueeze(0).to(self.device)
-
-                with torch.no_grad():
-                    raw = actor(lo).cpu().numpy().flatten() 
-
-                for j, val in enumerate(raw):
-                    mn, mx = self.action_ranges_list_hmarl[idx_a + j]
-                    scaled = self.env_hmarl._scale_action(val, mn, mx)
-                    print(i, scaled)
-                    actions.append(w[i] * scaled)
-
-                idx_s += n_s
-                idx_a += raw.shape[0]
-
-            return actions
-
         
         elif mode == 'conventional':
             # Light control
