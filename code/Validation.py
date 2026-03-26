@@ -7,8 +7,13 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import mean_absolute_percentage_error, r2_score
 import os
 import seaborn as sns
+import openpyxl as xl
 
-df = pd.read_csv('Validation dataset.csv')
+validation_file = 'Validation dataset.xlsx'
+wb = xl.load_workbook(validation_file)
+sheet_name = wb.sheetnames
+excel_data = {sheet: pd.read_excel(validation_file, sheet_name=sheet) for sheet in sheet_name}
+df = excel_data['NASA']
 df = df.interpolate()
 df['x'] = df['x'] * 1000
 x_model = [df['x'][0]]
@@ -53,6 +58,55 @@ ax.text(-0.12, 1.05, 'a', transform=ax.transAxes,
             fontsize=14, fontweight='bold', va='top', ha='left')
 ax.set_xticks(np.arange(0,22,2))
 ax.set_xticklabels(np.arange(0,22,2))
+
+sheet_name.pop(0)
+#%% Validation under controlled environment
+
+irr = [21.8, 21.8 * 20/24, 21.8 * 12/24]    # conversion from 100 μmolphoton/m2/s to W/m2
+index = ['b', 'c', 'd']
+
+for name in sheet_name:
+    df = excel_data[name]
+    days = df['Time (days)']
+    x_model = [df['Biomass weight (g/L)'][0] * 1000]
+    x_data = [df['Biomass weight (g/L)'][i] * 1000 for i in range(df.shape[0])]
+    mius = []
+
+    for i in range(df.shape[0]-1):
+        dt = df['Time (days)'][1] - df['Time (days)'][0] 
+        irradiance = irr[sheet_name.index(name)]
+        temperature = df['Temperature (C)'][i]
+        pH = df['pH'][i]
+        DO = 14.6   # g/m3, assuming saturated DO at 25 C
+        substrate = df['Nitrate (g/L)'][i] / 62.01 * 1000
+        carbon = df['Dissolved inorganic carbon (mg/L)'][i]
+        
+        model = growth_model(x_model[i], 
+                            irradiance, 
+                            temperature, 
+                            pH, 
+                            DO, 
+                            substrate, 
+                            carbon)
+        
+        miu, fI, fC, fpH, fS, fT = model.solve()
+
+        x_model.append(x_model[i]*(1+miu*dt))
+        mius.append(miu)
+
+    accuracy = (1-mean_absolute_percentage_error(x_data, x_model))*100
+    fig, ax = plt.subplots(figsize=(6, 4), dpi=600)
+    ax.scatter(days, x_data, label='Data', color = '#96a1a8')
+    ax.plot(days, x_model, label='Model', color = '#003366', linewidth=3)
+    ax.legend(frameon=False, loc=2)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.set_xlabel('Time (days)')
+    ax.set_ylabel(r'Biomass concentration (g $\mathrm{m}^{-3}$)')
+    ax.text(0.0, 1200, f'Accuracy: {accuracy:.1f}%')
+    ax.set_ylim(250, 2100)
+    ax.text(-0.12, 1.05, index[sheet_name.index(name)], transform=ax.transAxes,
+            fontsize=14, fontweight='bold', va='top', ha='left')
 
 #%% Photosynthesis model
 
@@ -128,7 +182,7 @@ accuracy = (1-mean_absolute_percentage_error(df['O2 data'], df['O2 model']))
 p = min(min(df['O2 data']), min(df['O2 model']))
 q = max(max(df['O2 data']), max(df['O2 model']))
 
-fig, ax = plt.subplots(figsize=(6, 4), dpi=600)
+fig, ax = plt.subplots(figsize=(4, 6), dpi=600)
 ax.plot([p,q], [p,q], linewidth=3, color=colors[0])
 
 for i, ref in enumerate(refs):
@@ -142,7 +196,7 @@ ax.text(p*1.2, q*0.6, f'Accuracy: {accuracy*100:.1f}%')
 ax.set_ylabel(r'Predicted O$_2$ production (g$_{\mathrm{O_2}}$ g$_\mathrm{biomass}^{-1}$ day$^{-1}$)')
 ax.set_xlabel(r'Actual O$_2$ production (g$_{\mathrm{O_2}}$ g$_\mathrm{biomass}^{-1}$ day$^{-1}$)')
 ax.legend(frameon=False)
-ax.text(-0.12, 1.08, 'b', transform=ax.transAxes,
+ax.text(-0.12, 1.08, 'e', transform=ax.transAxes,
             fontsize=14, fontweight='bold', va='top', ha='left')
 ax.spines['top'].set_visible(False)
 ax.spines['right'].set_visible(False)
