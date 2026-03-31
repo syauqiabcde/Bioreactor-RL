@@ -6,7 +6,6 @@ from tensorflow import keras
 import os
 from environment import Bioreactor
 import tensorflow as tf
-import torch
 from pathlib import Path
 
 def reward_viz(rewards, nb_episode, rolling_window = 10, confidence = 0.95, title=''):

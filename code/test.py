@@ -29,7 +29,10 @@ location = {
             'Ulsan': (35.5392, 129.3119),   # Ulsan, S. Korea, represents sub-tropical climate
             'Riyadh': (23.333, 45.333) ,    # Riyadh, Saudi Arabia, represents arid and dry climate
             'La Paz': (-16.4955, -68.1336), # La Paz, Bolivia, reprents high-altitde climate
-            'Oslo': (59.9133, 10.739)       # Oslo, Norway, represents low light, colde climate
+            'Oslo': (59.9133, 10.739),      # Oslo, Norway, represents low light, colde climate
+            'Beijing': (39.9042, 116.4074), # Beijing, China, represents temperate and biggest spirulina producer climate
+            'Salt lake city': (40.7608, -111.8910),  # Salt lake city, USA, represents high-altitude and dry climate
+            'Cape Town': (-33.9249, 18.4241),  # Cape Town, South Africa, represents Mediterranean climate            
             }      
 
 season = {
@@ -38,6 +41,15 @@ season = {
     'Summer': ['2024-07-01'],
     'Fall': ['2024-10-01']
     }
+
+SEASON_FLIP = {
+    'Winter': 'Summer',
+    'Spring': 'Fall',
+    'Summer': 'Winter',
+    'Fall':   'Spring'
+}
+
+south = ['Cape Town', 'La Paz'] # Cities located in the southern hemisphere, where the seasons are flipped compared to the northern hemisphere
 
 for key in season:
     start_date = datetime.strptime(season[key][0], "%Y-%m-%d")
@@ -60,8 +72,8 @@ for control in controls:
                 "latitude": location[city][0],
                 "longitude": location[city][1],
                 "hourly": ["temperature_2m", "relative_humidity_2m", "wind_speed_10m", "shortwave_radiation"],
-                "start_date": season[time][0],
-                "end_date": season[time][1]
+                "start_date": season[SEASON_FLIP[time] if city not in south else time][0],
+                "end_date": season[SEASON_FLIP[time] if city not in south else time][1]
             }
             responses = openmeteo.weather_api(url, params=params)
 
@@ -156,6 +168,6 @@ for control in controls:
 
             cols = 'x,S,I_sunlight,I_red_light,I_blue_light,level,Fs,CO2_ratio,Facid,Fbase,T,CO2,O2,pH,T_env,RH,wind_speed,Q_heat,miu,miu_light,miu_carbon,miu_pH,miu_S,miu_T,CO2_cons'    
             results = np.array(result)
-            np.savetxt(f'test result_{control_mode}_{city}_{time}.csv', results, header=cols, delimiter=',', fmt='%f')
+            np.savetxt(f'result/test result_{control_mode}_{city}_{time}.csv', results, header=cols, delimiter=',', fmt='%f')
 
 print('Finished')   
