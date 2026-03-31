@@ -175,7 +175,7 @@ for i in range(df.shape[0]):
 
 refs = df['Ref'].unique()
 colors = sns.color_palette("tab10", n_colors=len(refs)+1)
-markers = ['o', 'x', '+']
+markers = ['o', 'x', '+', 's', '^']
 
 df['O2 model'] = O2_model
 accuracy = (1-mean_absolute_percentage_error(df['O2 data'], df['O2 model']))
@@ -200,3 +200,21 @@ ax.text(-0.12, 1.08, 'e', transform=ax.transAxes,
             fontsize=14, fontweight='bold', va='top', ha='left')
 ax.spines['top'].set_visible(False)
 ax.spines['right'].set_visible(False)
+
+# Photoinhibition validation
+df = df[(df['Ref'] == 'Torzillo and Vonshak, 1994') & \
+        (df['Irradiance'] != 2500) & \
+        (df['case'] == 'photoinhibition')]
+df = df.sort_values(by=["Irradiance"])
+accuracy = (1-mean_absolute_percentage_error(df['O2 data'], df['O2 model']))
+
+fig, ax = plt.subplots(figsize=(6, 4), dpi=600)
+ax.scatter(df['Irradiance'], df['O2 data'], label='Data', color = '#96a1a8')
+ax.plot(df['Irradiance'], df['O2 model'], label='Model', color = '#003366', linewidth=3)
+ax.legend(frameon=False, loc=2)
+ax.set_xlabel(r'Photo flux density ($\mu$ mole m$^{-2}$ s$^{-1}$)')
+ax.set_ylabel(r'O$_2$ production (g$_{\mathrm{O_2}}$ g$_\mathrm{biomass}^{-1}$ day$^{-1}$)')
+ax.text(300.0, 1.6, f'Accuracy: {accuracy*100:.1f}%')
+ax.spines['top'].set_visible(False)
+ax.spines['right'].set_visible(False)
+ax.set_ylim(0.0, 2.0)
